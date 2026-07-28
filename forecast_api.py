@@ -16,27 +16,23 @@ y_idx = processor.scale_cols.index('y')
 Y_STD_WATTS = float(processor.scaler.scale_[y_idx])
 Y_MEAN_WATTS = float(processor.scaler.mean_[y_idx])
 
-# ==========================================
 # Helper Functions & Endpoints
-# ==========================================
+
 def parse_json(json_payload):
-    # 1. Parse historical data[cite: 1, 2]
+    # 1. Parse historical data
     hist_times = json_payload['history']['times']
     hist_data = json_payload['history']['data']
     df_hist = pd.DataFrame(hist_data)
     df_hist['times'] = pd.to_datetime(hist_times)
     
-    # 2. Parse future data (weather forecasts) if provided in the payload
-    if 'future' in json_payload:
-        fut_times = json_payload['future']['times']
-        fut_data = json_payload['future']['data']
-        df_fut = pd.DataFrame(fut_data)
-        df_fut['times'] = pd.to_datetime(fut_times)
-        
-        # Combine history and future safely
-        df = pd.concat([df_hist, df_fut], ignore_index=True)
-    else:
-        df = df_hist
+    # 2. Parse future data (weather forecasts)
+    fut_times = json_payload['future']['times']
+    fut_data = json_payload['future']['data']
+    df_fut = pd.DataFrame(fut_data)
+    df_fut['times'] = pd.to_datetime(fut_times)
+    
+    # Combine history and future safely
+    df = pd.concat([df_hist, df_fut], ignore_index=True)
 
     df.set_index('times', inplace=True)
     df = df.asfreq('15min')
@@ -47,6 +43,12 @@ async def generate_forecast(request: Request):
     try:
         payload = await request.json()
         
+        if 'future' not in payload:
+            raise HTTPException(
+                status_code=400,
+                detail="'future' block with timestamps and weather data is strictly required to generate a forecast."
+            )
+               
         labels = payload.get("labels", {})
         parameters = payload.get("parameters", {})
         horizon = parameters.get("horizon", 832)
